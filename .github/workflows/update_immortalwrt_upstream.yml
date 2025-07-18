@@ -17,8 +17,8 @@ jobs:
 
       - name: 安装git并配置 Git 用户信息
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: 克隆官方 ImmortalWRT 上游源码到临时目录，更新 upstream 分支（强制覆盖）
         run: |
@@ -56,3 +56,5 @@ jobs:
             exit 1
           fi
           git push origin main
+        env:
+        GITHUB_TOKEN: ${{ secrets.GH_PAT }}  
