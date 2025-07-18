@@ -49,9 +49,9 @@ jobs:
 
       - name: 合并 upstream 分支到 main 并推送
         run: |
-          git pull origin main
+          git pull
           git checkout main
-          if ! git merge upstream --no-edit; then
+          if ! git merge upstream --allow-unrelated-histories --no-edit; then
             echo "合并冲突，请手动解决"
             exit 1
           fi
