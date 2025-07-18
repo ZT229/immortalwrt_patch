@@ -26,7 +26,7 @@ jobs:
         run: |
           git clone -b openwrt-24.10 --single-branch --depth 1 https://github.com/immortalwrt/luci.git upstream_tmp
           cd upstream_tmp
-          rm -rf .git .github .vscode
+          rm -rf .git .github
           git init
           git add .
           git commit -m "同步官方 upstream openwrt-24.10 源码"
