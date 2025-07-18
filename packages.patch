@@ -1,0 +1,57 @@
+diff --git a/net/daed/files/daed.config b/net/daed/files/daed.config
+index ff61f36..a7dbd16 100644
+--- a/net/daed/files/daed.config
++++ b/net/daed/files/daed.config
+@@ -2,6 +2,5 @@
+ config daed 'config'
+ 	option enabled '0'
+ 	option listen_addr '0.0.0.0:2023'
+-	option log_maxbackups '1'
+-	option log_maxsize '5'
+-
++	option log_maxbackups '0'
++	option log_maxsize '0'
+\ No newline at end of file
+diff --git a/net/daed/files/daed.init b/net/daed/files/daed.init
+index baa7288..52e0f96 100644
+--- a/net/daed/files/daed.init
++++ b/net/daed/files/daed.init
+@@ -17,8 +17,8 @@ start_service() {
+ 
+ 	local listen_addr log_maxbackups log_maxsize
+ 	config_get listen_addr "config" "listen_addr" "0.0.0.0:2023"
+-	config_get log_maxbackups "config" "log_maxbackups" "1"
+-	config_get log_maxsize "config" "log_maxsize" "5"
++	config_get log_maxbackups "config" "log_maxbackups" "0"
++	config_get log_maxsize "config" "log_maxsize" "0"
+ 
+ 	procd_open_instance "$CONF"
+ 	procd_set_param command "$PROG" run
+diff --git a/net/sing-box/Makefile b/net/sing-box/Makefile
+index 96faf0b..accfc5a 100644
+--- a/net/sing-box/Makefile
++++ b/net/sing-box/Makefile
+@@ -72,6 +72,7 @@ define Package/sing-box/config
+ 
+     config SING_BOX_BUILD_DHCP
+     bool "Build with DHCP support"
++    default y
+ 
+     config SING_BOX_BUILD_ECH
+     bool "Build with TLS ECH extension support"
+@@ -83,6 +84,7 @@ define Package/sing-box/config
+ 
+     config SING_BOX_BUILD_GRPC
+     bool "Build with standard gPRC support"
++    default y
+     help
+       Standard gRPC has good compatibility but poor performance.
+ 
+@@ -107,6 +109,7 @@ define Package/sing-box/config
+ 
+     config SING_BOX_BUILD_V2RAY_API
+     bool "Build with V2Ray API support"
++    default y
+ 
+     config SING_BOX_BUILD_WIREGUARD
+     bool "Build with WireGuard support"
