@@ -72,6 +72,7 @@ jobs:
           cp $GITHUB_WORKSPACE/bg1.jpg .
 
       - name: 推送
+        working-directory: luci_repo
         run: |
           git add .
           git commit -m "在 upstream 分支应用 luci.patch"
