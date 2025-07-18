@@ -31,14 +31,16 @@ jobs:
           git remote add origin https://github.com/ZT229/immortalwrt.git
           git branch -M upstream
           git push -f origin upstream
+          cd
 
       - name: 克隆我的远程仓库，应用 patch 到 upstream 并推送
         run: |
           git clone https://github.com/ZT229/immortalwrt.git immortalwrt_repo
           cd immortalwrt_repo
           git checkout upstream
-
-          cp $GITHUB_WORKSPACE/cudy.patch .
+          cd
+          
+          cp cudy.patch immortalwrt_repo
 
           git apply cudy.patch
           rm -f cudy.patch
