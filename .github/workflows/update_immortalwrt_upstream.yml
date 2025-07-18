@@ -38,12 +38,10 @@ jobs:
       - name: 克隆我的远程仓库，应用 patch 到 upstream 并推送
         run: |
           git clone https://ZT229:${{ secrets.GH_PAT }}@github.com/ZT229/immortalwrt.git immortalwrt_repo
+          cp cudy.patch immortalwrt_repo/
           cd immortalwrt_repo
           git checkout upstream
-          cd
           
-          cp cudy.patch immortalwrt_repo
-
           git apply cudy.patch
           rm -f cudy.patch
 
