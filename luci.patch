@@ -544,10 +544,10 @@ index df019b2..53142f4 100644
  	+luci-app-package-manager
 diff --git a/libs/luci-lib-fs/Makefile b/libs/luci-lib-fs/Makefile
 new file mode 100644
-index 0000000..8845abd
+index 0000000..6a3a0b0
 --- /dev/null
 +++ b/libs/luci-lib-fs/Makefile
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,48 @@
 +#
 +# Copyright (C) 2009 OpenWrt.org
 +#
@@ -592,11 +592,11 @@ index 0000000..8845abd
 +
 +define Package/luci-lib-fs/install
 +	$(INSTALL_DIR) $(1)/usr/lib/lua/luci
-+	$(CP) ./files/*.lua $(1)/usr/lib/lua/luci
-+	
++	$(CP) ./files/*.lua $(1)/usr/lib/lua/luci	
 +endef
 +
 +$(eval $(call BuildPackage,luci-lib-fs))
+\ No newline at end of file
 diff --git a/libs/luci-lib-fs/files/fs.lua b/libs/luci-lib-fs/files/fs.lua
 new file mode 100644
 index 0000000..a81ff67
