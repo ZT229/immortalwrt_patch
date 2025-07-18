@@ -53,8 +53,5 @@ jobs:
         run: |
           git pull
           git checkout main
-          if ! git merge upstream --allow-unrelated-histories --no-edit; then
-            echo "合并冲突，请手动解决"
-            exit 1
-          fi
+          git merge upstream --allow-unrelated-histories --no-edit
           git push origin main 
