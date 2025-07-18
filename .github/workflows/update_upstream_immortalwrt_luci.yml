@@ -1,0 +1,87 @@
+name: 拉取并同步上游immortalwrt的luci源码
+
+on:
+  schedule:
+    - cron: '0 3 */3 * *'   # 每三天 UTC 03:00 运行（北京时间11点）
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+    steps:
+      - name: 获取 luci.patch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: 配置 Git 用户信息
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: 克隆官方 ImmortalWRT 上游源码到临时目录，更新 upstream 分支（强制覆盖）
+        run: |
+          git clone -b openwrt-24.10 --single-branch --depth 1 https://github.com/immortalwrt/luci.git upstream_tmp
+          cd upstream_tmp
+          rm -rf .git .github .vscode
+          git init
+          git add .
+          git commit -m "同步官方 upstream openwrt-24.10 源码"
+          git remote add origin https://ZT229:${{ secrets.GH_PAT }}@github.com/ZT229/luci.git
+          git branch -M upstream
+          git push -f origin upstream
+          cd
+
+      - name: 克隆我的远程仓库，应用 patch 到 upstream
+        run: |
+          git clone https://ZT229:${{ secrets.GH_PAT }}@github.com/ZT229/luci.git luci_repo
+          cp luci.patch luci_repo/
+          cp change-theme-color.sh luci_repo/
+          cd luci_repo
+          git checkout upstream
+
+          chmod +x change-theme-color.sh
+          git apply luci.patch
+          rm -f luci.patch
+          ./change-theme-color.sh
+          rm -f change-theme-color.sh
+
+      - name: 替换 OpenClash 数据
+        working-directory: luci_repo/applications/luci-app-openclash/root/etc/openclash
+        run: |
+          rm -f Country.mmdb GeoSite.dat
+          curl -sL -o Country.mmdb https://github.com/alecthw/mmdb_china_ip_list/raw/release/Country.mmdb && echo "Country.mmdb done!"
+          curl -sL -o GeoSite.dat https://github.com/Loyalsoldier/v2ray-rules-dat/raw/release/geosite.dat && echo "GeoSite.dat done!"
+          curl -sL -o GeoIP.dat https://github.com/Loyalsoldier/v2ray-rules-dat/raw/release/geoip.dat && echo "GeoIP.dat done!"
+          curl -sL -o ASN.mmdb https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/GeoLite2-ASN.mmdb && echo "ASN.mmdb done!"
+
+          mkdir -p ./core/ && cd ./core/
+          curl -sL -o meta.tar.gz https://github.com/vernesong/OpenClash/raw/core/dev/meta/clash-linux-arm64.tar.gz
+          tar -zxf meta.tar.gz
+          mv -f clash clash_meta
+          chmod +x clash_meta
+          rm -f *.tar.gz  
+      - name: 推送
+        run: |
+          git add .
+          git commit -m "在 upstream 分支应用 luci.patch"
+          git push origin upstream
+
+      - name: 合并 upstream 分支到 main 并推送
+        run: |
+          git clone https://ZT229:${{ secrets.GH_PAT }}@github.com/ZT229/luci.git merge_repo
+          cd merge_repo
+
+          # 拉取并创建本地 upstream 分支
+          git fetch origin upstream:upstream
+
+          git checkout main
+          git merge upstream --allow-unrelated-histories --no-edit || {
+            echo "❌ 合并冲突，请手动解决"
+            exit 1
+          }
+
+          git push origin main
