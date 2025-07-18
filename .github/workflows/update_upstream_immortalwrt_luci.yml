@@ -45,8 +45,8 @@ jobs:
 
           chmod +x change-theme-color.sh
           git apply luci.patch
-          rm -f luci.patch
           ./change-theme-color.sh
+          rm -f luci.patch
           rm -f change-theme-color.sh
 
       - name: 替换 OpenClash 数据
