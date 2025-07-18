@@ -57,4 +57,4 @@ jobs:
           fi
           git push origin main
         env:
-        GITHUB_TOKEN: ${{ secrets.GH_PAT }}  
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }} 
