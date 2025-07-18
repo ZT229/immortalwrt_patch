@@ -1,4 +1,4 @@
-name: 拉取并同步上游源码
+name: 拉取并同步上游immortalwrt源码
 
 on:
   schedule:
