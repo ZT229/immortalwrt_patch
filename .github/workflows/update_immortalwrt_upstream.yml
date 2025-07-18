@@ -8,6 +8,8 @@ on:
 jobs:
   update:
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
     steps:
       - name: 获取 cudy.patch
@@ -57,6 +59,4 @@ jobs:
             echo "合并冲突，请手动解决"
             exit 1
           fi
-          git push origin main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }} 
+          git push origin main 
