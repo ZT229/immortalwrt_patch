@@ -1,0 +1,928 @@
+diff --git a/applications/luci-app-daed/htdocs/luci-static/resources/view/daed/config.js b/applications/luci-app-daed/htdocs/luci-static/resources/view/daed/config.js
+index e4a9794..4fd133d 100644
+--- a/applications/luci-app-daed/htdocs/luci-static/resources/view/daed/config.js
++++ b/applications/luci-app-daed/htdocs/luci-static/resources/view/daed/config.js
+@@ -81,12 +81,12 @@ return view.extend({
+ 		o = s.option(form.Value, 'log_maxbackups', _('Max log backups'),
+ 			_('The maximum number of old log files to retain.'));
+ 		o.datatype = 'uinteger';
+-		o.default = '1';
++		o.default = '0';
+ 
+ 		o = s.option(form.Value, 'log_maxsize', _('Max log size'),
+ 			_('The maximum size in megabytes of the log file before it gets rotated.'));
+ 		o.datatype = 'uinteger';
+-		o.default = '5';
++		o.default = '0';
+ 
+ 		return m.render();
+ 	}
+diff --git a/applications/luci-app-daed/root/usr/share/luci/menu.d/luci-app-daed.json b/applications/luci-app-daed/root/usr/share/luci/menu.d/luci-app-daed.json
+index 7dd5e2b..c952706 100644
+--- a/applications/luci-app-daed/root/usr/share/luci/menu.d/luci-app-daed.json
++++ b/applications/luci-app-daed/root/usr/share/luci/menu.d/luci-app-daed.json
+@@ -1,6 +1,6 @@
+ {
+ 	"admin/services/daed": {
+-		"title": "daed",
++		"title": "DAED",
+ 		"order": 20,
+ 		"action": {
+ 			"type": "firstchild"
+diff --git a/applications/luci-app-filetransfer/Makefile b/applications/luci-app-filetransfer/Makefile
+new file mode 100644
+index 0000000..81e1e44
+--- /dev/null
++++ b/applications/luci-app-filetransfer/Makefile
+@@ -0,0 +1,19 @@
++#
++# Copyright (C) 2008-2014 The LuCI Team <luci@lists.subsignal.org>
++#
++# This is free software, licensed under the Apache License, Version 2.0 .
++#
++
++include $(TOPDIR)/rules.mk
++
++LUCI_TITLE:=LuCI page for IPK upload
++LUCI_DEPENDS:=+luci-lib-fs
++LUCI_PKGARCH:=all
++
++PKG_NAME:=luci-app-filetransfer
++PKG_VERSION:=1
++PKG_RELEASE:=2
++
++include ../../luci.mk
++
++# call BuildPackage - OpenWrt buildroot signature
+diff --git a/applications/luci-app-filetransfer/luasrc/controller/filetransfer.lua b/applications/luci-app-filetransfer/luasrc/controller/filetransfer.lua
+new file mode 100644
+index 0000000..ac1f1f6
+--- /dev/null
++++ b/applications/luci-app-filetransfer/luasrc/controller/filetransfer.lua
+@@ -0,0 +1,13 @@
++--[[
++luci-app-filetransfer
++Description: File upload / download
++Author: yuleniwo  xzm2@qq.com  QQ:529698939
++Modify: ayongwifi@126.com  www.openwrtdl.com
++]]--
++
++module("luci.controller.filetransfer", package.seeall)
++
++function index()
++
++	entry({"admin", "system", "filetransfer"}, form("filetransfer"), _("FileTransfer"), 89).dependent = true
++end
+diff --git a/applications/luci-app-filetransfer/luasrc/model/cbi/filetransfer.lua b/applications/luci-app-filetransfer/luasrc/model/cbi/filetransfer.lua
+new file mode 100644
+index 0000000..91da2bd
+--- /dev/null
++++ b/applications/luci-app-filetransfer/luasrc/model/cbi/filetransfer.lua
+@@ -0,0 +1,164 @@
++local fs = require "luci.fs"
++local http = luci.http
++
++ful = SimpleForm("upload", translate("Upload"), nil)
++ful.reset = false
++ful.submit = false
++
++sul = ful:section(SimpleSection, "", translate("Upload file to '/tmp/upload/'"))
++
++fu = sul:option(FileUpload, "")
++fu.template = "filetransfer/other_upload"
++
++um = sul:option(DummyValue, "", nil)
++um.template = "filetransfer/other_dvalue"
++
++fdl = SimpleForm("download", translate("Download"), nil)
++fdl.reset = false
++fdl.submit = false
++
++sdl = fdl:section(SimpleSection, "", translate("Download file"))
++
++fd = sdl:option(FileUpload, "")
++fd.template = "filetransfer/other_download"
++
++dm = sdl:option(DummyValue, "", nil)
++dm.template = "filetransfer/other_dvalue"
++
++function Download()
++	local sPath, sFile, fd, block
++	sPath = http.formvalue("dlfile")
++	sFile = nixio.fs.basename(sPath)
++	if luci.fs.isdirectory(sPath) then
++		fd = io.popen('tar -C "%s" -cz .' % {sPath}, "r")
++		sFile = sFile .. ".tar.gz"
++	else
++		fd = nixio.open(sPath, "r")
++	end
++	if not fd then
++		dm.value = translate("Couldn't open file: ") .. sPath
++		return
++	end
++	dm.value = nil
++	http.header('Content-Disposition', 'attachment; filename="%s"' % {sFile})
++	http.prepare_content("application/octet-stream")
++	while true do
++		block = fd:read(nixio.const.buffersize)
++		if (not block) or (#block ==0) then
++			break
++		else
++			http.write(block)
++		end
++	end
++	fd:close()
++	http.close()
++end
++
++local dir, fd
++dir = "/tmp/upload/"
++nixio.fs.mkdir(dir)
++http.setfilehandler(
++	function(meta, chunk, eof)
++		if not fd then
++			if not meta then return end
++
++			if	meta and chunk then fd = nixio.open(dir .. meta.file, "w") end
++
++			if not fd then
++				um.value = translate("Create upload file error.")
++				return
++			end
++		end
++		if chunk and fd then
++			fd:write(chunk)
++		end
++		if eof and fd then
++			fd:close()
++			fd = nil
++			um.value = translate("File saved to") .. ' "/tmp/upload/' .. meta.file .. '"'
++		end
++	end
++)
++
++if luci.http.formvalue("upload") then
++
++
++	local f = luci.http.formvalue("ulfile")
++	if #f <= 0 then
++		um.value = translate("No specify upload file.")
++	end
++elseif luci.http.formvalue("download") then
++	Download()
++end
++
++local function getSizeStr(size)
++	local i = 0
++	local byteUnits = {' kB', ' MB', ' GB', ' TB'}
++	repeat
++		size = size / 1024
++		i = i + 1
++	until(size <= 1024)
++    return string.format("%.1f", size) .. byteUnits[i]
++end
++
++local inits, attr = {}
++for i, f in ipairs(fs.glob("/tmp/upload/*")) do
++	attr = fs.stat(f)
++	if attr then
++		inits[i] = {}
++		inits[i].name = fs.basename(f)
++		inits[i].mtime = os.date("%Y-%m-%d %H:%M:%S", attr.mtime)
++		inits[i].modestr = attr.modestr
++		inits[i].size = getSizeStr(attr.size)
++		inits[i].remove = 0
++		inits[i].install = false
++	end
++end
++
++form = SimpleForm("filelist", translate("Upload file list"), nil)
++form.reset = false
++form.submit = false
++
++tb = form:section(Table, inits)
++nm = tb:option(DummyValue, "name", translate("File name"))
++mt = tb:option(DummyValue, "mtime", translate("Modify time"))
++ms = tb:option(DummyValue, "modestr", translate("Attributes"))
++sz = tb:option(DummyValue, "size", translate("Size"))
++
++btnrm = tb:option(Button, "remove", translate("Remove"))
++btnrm.render = function(self, section, scope)
++	self.inputstyle = "remove"
++	Button.render(self, section, scope)
++end
++
++btnrm.write = function(self, section)
++	local v = luci.fs.unlink("/tmp/upload/" .. luci.fs.basename(inits[section].name))
++	if v then table.remove(inits, section) end
++	return v
++end
++
++function IsIpkFile(name)
++	name = name or ""
++	local ext = string.lower(string.sub(name, -4, -1))
++	return ext == ".ipk"
++end
++
++btnis = tb:option(Button, "install", translate("Install"))
++btnis.template = "filetransfer/other_button"
++btnis.render = function(self, section, scope)
++	if not inits[section] then return false end
++	if IsIpkFile(inits[section].name) then
++		scope.display = ""
++	else
++		scope.display = "none"
++	end
++	self.inputstyle = "apply"
++	Button.render(self, section, scope)
++end
++
++btnis.write = function(self, section)
++	local r = luci.sys.exec(string.format('opkg --force-depends install "/tmp/upload/%s"', inits[section].name))
++	form.description = string.format('<span style="color: red">%s</span>', r)
++end
++
++return ful, fdl, form
+diff --git a/applications/luci-app-filetransfer/luasrc/view/filetransfer/other_button.htm b/applications/luci-app-filetransfer/luasrc/view/filetransfer/other_button.htm
+new file mode 100644
+index 0000000..1c391ad
+--- /dev/null
++++ b/applications/luci-app-filetransfer/luasrc/view/filetransfer/other_button.htm
+@@ -0,0 +1,7 @@
++<%+cbi/valueheader%>
++	<% if self:cfgvalue(section) ~= false then %>
++		<input class="cbi-button cbi-input-<%=self.inputstyle or "button" %>" style="display: <%= display %>" type="submit"<%= attr("name", cbid) .. attr("id", cbid) .. attr("value", self.inputtitle or self.title)%> />
++	<% else %>
++		-
++	<% end %>
++<%+cbi/valuefooter%>
+diff --git a/applications/luci-app-filetransfer/luasrc/view/filetransfer/other_download.htm b/applications/luci-app-filetransfer/luasrc/view/filetransfer/other_download.htm
+new file mode 100644
+index 0000000..c147286
+--- /dev/null
++++ b/applications/luci-app-filetransfer/luasrc/view/filetransfer/other_download.htm
+@@ -0,0 +1,5 @@
++<%+cbi/valueheader%>
++	<label class="cbi-value" style="display:inline-block; width: 130px" for="dlfile"><%:Path on Route:%></label>
++	<input class="cbi-input-file" style="width: 400px" type="text" id="dlfile" name="dlfile" />
++	<input type="submit" class="cbi-button cbi-input-apply" name="download" value="<%:Download%>" />
++<%+cbi/valuefooter%>
+diff --git a/applications/luci-app-filetransfer/luasrc/view/filetransfer/other_dvalue.htm b/applications/luci-app-filetransfer/luasrc/view/filetransfer/other_dvalue.htm
+new file mode 100644
+index 0000000..296c61e
+--- /dev/null
++++ b/applications/luci-app-filetransfer/luasrc/view/filetransfer/other_dvalue.htm
+@@ -0,0 +1,8 @@
++<%+cbi/valueheader%>
++<span style="color: red">
++<%
++	local val = self:cfgvalue(section) or self.default or ""
++	write(pcdata(val))
++%>
++</span>
++<%+cbi/valuefooter%>
+diff --git a/applications/luci-app-filetransfer/luasrc/view/filetransfer/other_upload.htm b/applications/luci-app-filetransfer/luasrc/view/filetransfer/other_upload.htm
+new file mode 100644
+index 0000000..bb56f44
+--- /dev/null
++++ b/applications/luci-app-filetransfer/luasrc/view/filetransfer/other_upload.htm
+@@ -0,0 +1,5 @@
++<%+cbi/valueheader%>
++	<label class="cbi-value" style="display:inline-block; width: 130px" for="ulfile"><%:Choose local file:%></label>
++	<input class="cbi-input-file" style="width: 400px" type="file" id="ulfile" name="ulfile" />
++	<input type="submit" class="cbi-button cbi-input-apply" name="upload" value="<%:Upload%>" />
++<%+cbi/valuefooter%>
+diff --git a/applications/luci-app-filetransfer/po/zh-cn/filetransfer.po b/applications/luci-app-filetransfer/po/zh-cn/filetransfer.po
+new file mode 100644
+index 0000000..925a47a
+--- /dev/null
++++ b/applications/luci-app-filetransfer/po/zh-cn/filetransfer.po
+@@ -0,0 +1,66 @@
++msgid ""
++msgstr ""
++"Content-Type: text/plain; charset=UTF-8\n"
++"Project-Id-Version: \n"
++"POT-Creation-Date: \n"
++"PO-Revision-Date: \n"
++"Last-Translator: dingpengyu <dingpengyu06@gmail.com>\n"
++"Language-Team: \n"
++"MIME-Version: 1.0\n"
++"Content-Transfer-Encoding: 8bit\n"
++"Language: zh_CN\n"
++"X-Generator: Poedit 2.3.1\n"
++
++msgid "Choose local file:"
++msgstr "选择本地文件："
++
++msgid "Couldn't open file:"
++msgstr "无法打开文件："
++
++msgid "Create upload file error."
++msgstr "创建上传文件失败。"
++
++msgid "Download"
++msgstr "下载"
++
++msgid "Download file"
++msgstr "下载文件"
++
++msgid "File name"
++msgstr "文件名"
++
++msgid "File saved to"
++msgstr "文件保存到"
++
++msgid "FileTransfer"
++msgstr "文件传输"
++
++msgid "Install"
++msgstr "安装"
++
++msgid "Attributes"
++msgstr "属性"
++
++msgid "Modify time"
++msgstr "修改时间"
++
++msgid "No specify upload file."
++msgstr "未指定上传文件。"
++
++msgid "Path on Route:"
++msgstr "路由根目录："
++
++msgid "Remove"
++msgstr "移除"
++
++msgid "Size"
++msgstr "大小"
++
++msgid "Upload"
++msgstr "上传"
++
++msgid "Upload file list"
++msgstr "上传文件列表"
++
++msgid "Upload file to '/tmp/upload/'"
++msgstr "将文件上传到'/tmp/upload/'"
+diff --git a/applications/luci-app-filetransfer/root/etc/uci-defaults/luci-filetransfer b/applications/luci-app-filetransfer/root/etc/uci-defaults/luci-filetransfer
+new file mode 100755
+index 0000000..935d7c8
+--- /dev/null
++++ b/applications/luci-app-filetransfer/root/etc/uci-defaults/luci-filetransfer
+@@ -0,0 +1,6 @@
++#!/bin/sh
++
++sed -i 's/cbi.submit\"] = true/cbi.submit\"] = \"1\"/g' /usr/lib/lua/luci/dispatcher.lua
++
++rm -f /tmp/luci-indexcache
++exit 0
+diff --git a/applications/luci-app-passwall/root/usr/share/passwall/0_default_config b/applications/luci-app-passwall/root/usr/share/passwall/0_default_config
+index 0c5490e..1b6c5e7 100644
+--- a/applications/luci-app-passwall/root/usr/share/passwall/0_default_config
++++ b/applications/luci-app-passwall/root/usr/share/passwall/0_default_config
+@@ -32,7 +32,7 @@ config global_haproxy
+ 
+ config global_delay
+ 	option start_daemon '1'
+-	option start_delay '60'
++	option start_delay '20'
+ 
+ config global_forwarding
+ 	option tcp_no_redir_ports 'disable'
+@@ -53,17 +53,17 @@ config global_singbox
+ 	option sniff_override_destination '0'
+ 
+ config global_other
+-	option auto_detection_time 'tcping'
++	option auto_detection_time 'icmp'
+ 	option show_node_info '0'
+ 
+ config global_rules
+-	option auto_update '0'
++	option auto_update '1'
+ 	option chnlist_update '1'
+ 	option chnroute_update '1'
+ 	option chnroute6_update '1'
+ 	option gfwlist_update '1'
+-	option geosite_update '0'
+-	option geoip_update '0'
++	option geosite_update '1'
++	option geoip_update '1'
+ 	list gfwlist_url 'https://fastly.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/gfw.txt'
+ 	list chnroute_url 'https://ispip.clang.cn/all_cn.txt'
+ 	list chnroute_url 'https://fastly.jsdelivr.net/gh/gaoyifan/china-operator-ip@ip-lists/china.txt'
+diff --git a/collections/luci-light/Makefile b/collections/luci-light/Makefile
+index d0d1997..210bb9f 100644
+--- a/collections/luci-light/Makefile
++++ b/collections/luci-light/Makefile
+@@ -16,10 +16,11 @@ LUCI_DEPENDS:= \
+ 	+luci-app-firewall \
+ 	+luci-mod-admin-full \
+ 	+luci-proto-ppp \
+-	+luci-theme-bootstrap \
++	+luci-theme-argon \
+ 	+rpcd-mod-rrdns \
+ 	+uhttpd \
+-	+uhttpd-mod-ubus
++	+uhttpd-mod-ubus \
++	+luci-ssl-openssl
+ 
+ PKG_LICENSE:=Apache-2.0
+ 
+diff --git a/collections/luci-nginx/Makefile b/collections/luci-nginx/Makefile
+index bc4ad95..b49a525 100644
+--- a/collections/luci-nginx/Makefile
++++ b/collections/luci-nginx/Makefile
+@@ -12,7 +12,7 @@ LUCI_BASENAME:=nginx
+ LUCI_TITLE:=LuCI interface with Nginx as Webserver
+ LUCI_DESCRIPTION:=Standard OpenWrt set including full admin with ppp support and the default Bootstrap theme
+ LUCI_DEPENDS:= \
+-	+nginx +nginx-mod-luci +luci-mod-admin-full +luci-theme-bootstrap \
++	+nginx +nginx-mod-luci +luci-mod-admin-full +luci-theme-argon \
+ 	+luci-app-firewall +luci-app-package-manager +luci-proto-ppp +IPV6:luci-proto-ipv6 \
+ 	+rpcd-mod-rrdns
+ 
+diff --git a/collections/luci-ssl-openssl/Makefile b/collections/luci-ssl-openssl/Makefile
+index df019b2..53142f4 100644
+--- a/collections/luci-ssl-openssl/Makefile
++++ b/collections/luci-ssl-openssl/Makefile
+@@ -14,7 +14,7 @@ LUCI_DESCRIPTION:=LuCI with OpenSSL as the SSL backend (libustream-openssl). \
+  OpenSSL cmd tools (openssl-util) are used by uhttpd for SSL key generation \
+  instead of the default px5g. (If px5g is installed, uhttpd will prefer that.)
+ 
+-LUCI_DEPENDS:=+luci-light \
++LUCI_DEPENDS:= \
+ 	+libustream-openssl \
+ 	+openssl-util \
+ 	+luci-app-package-manager
+diff --git a/libs/luci-lib-fs/Makefile b/libs/luci-lib-fs/Makefile
+new file mode 100644
+index 0000000..8845abd
+--- /dev/null
++++ b/libs/luci-lib-fs/Makefile
+@@ -0,0 +1,49 @@
++#
++# Copyright (C) 2009 OpenWrt.org
++#
++# This is free software, licensed under the GNU General Public License v2.
++# See /LICENSE for more information.
++#
++
++include $(TOPDIR)/rules.mk
++
++PKG_NAME:=luci-lib-fs
++PKG_VERSION:=1.0
++PKG_RELEASE:=1
++
++PKG_BUILD_DIR := $(BUILD_DIR)/$(PKG_NAME)
++PKG_INSTALL:=1
++
++include $(INCLUDE_DIR)/package.mk
++
++define Package/luci-lib-fs
++  SUBMENU:=Lua
++  SECTION:=lang
++  CATEGORY:=Languages
++  TITLE:=luci-lib-fs
++  PKGARCH:=all
++  URL:=https://github.com/lbthomsen/openwrt-luci
++  DEPENDS:=+luci-lib-nixio
++endef
++
++define Package/luci-lib-fs/description
++  luci-lib-fs
++endef
++
++define Build/Configure
++endef
++
++define Build/Compile
++endef
++
++define Build/Install
++endef
++
++
++define Package/luci-lib-fs/install
++	$(INSTALL_DIR) $(1)/usr/lib/lua/luci
++	$(CP) ./files/*.lua $(1)/usr/lib/lua/luci
++	
++endef
++
++$(eval $(call BuildPackage,luci-lib-fs))
+diff --git a/libs/luci-lib-fs/files/fs.lua b/libs/luci-lib-fs/files/fs.lua
+new file mode 100644
+index 0000000..a81ff67
+--- /dev/null
++++ b/libs/luci-lib-fs/files/fs.lua
+@@ -0,0 +1,244 @@
++--[[
++LuCI - Filesystem tools
++
++Description:
++A module offering often needed filesystem manipulation functions
++
++FileId:
++$Id$
++
++License:
++Copyright 2008 Steven Barth <steven@midlink.org>
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++	http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++
++]]--
++
++local io    = require "io"
++local os    = require "os"
++local ltn12 = require "luci.ltn12"
++local fs	= require "nixio.fs"
++local nutil = require "nixio.util"
++
++local type  = type
++
++--- LuCI filesystem library.
++module "luci.fs"
++
++--- Test for file access permission on given path.
++-- @class		function
++-- @name		access
++-- @param str	String value containing the path
++-- @return		Number containing the return code, 0 on sucess or nil on error
++-- @return		String containing the error description (if any)
++-- @return		Number containing the os specific errno (if any)
++access = fs.access
++
++--- Evaluate given shell glob pattern and return a table containing all matching
++-- file and directory entries.
++-- @class			function
++-- @name			glob
++-- @param filename	String containing the path of the file to read
++-- @return			Table containing file and directory entries or nil if no matches
++-- @return			String containing the error description (if no matches)
++-- @return			Number containing the os specific errno (if no matches)
++function glob(...)
++	local iter, code, msg = fs.glob(...)
++	if iter then
++		return nutil.consume(iter)
++	else
++		return nil, code, msg
++	end
++end
++
++--- Checks wheather the given path exists and points to a regular file.
++-- @param filename	String containing the path of the file to test
++-- @return			Boolean indicating wheather given path points to regular file
++function isfile(filename)
++	return fs.stat(filename, "type") == "reg"
++end
++
++--- Checks wheather the given path exists and points to a directory.
++-- @param dirname	String containing the path of the directory to test
++-- @return			Boolean indicating wheather given path points to directory
++function isdirectory(dirname)
++	return fs.stat(dirname, "type") == "dir"
++end
++
++--- Read the whole content of the given file into memory.
++-- @param filename	String containing the path of the file to read
++-- @return			String containing the file contents or nil on error
++-- @return			String containing the error message on error
++readfile = fs.readfile
++
++--- Write the contents of given string to given file.
++-- @param filename	String containing the path of the file to read
++-- @param data		String containing the data to write
++-- @return			Boolean containing true on success or nil on error
++-- @return			String containing the error message on error
++writefile = fs.writefile
++
++--- Copies a file.
++-- @param source	Source file
++-- @param dest		Destination
++-- @return			Boolean containing true on success or nil on error
++copy = fs.datacopy
++
++--- Renames a file.
++-- @param source	Source file
++-- @param dest		Destination
++-- @return			Boolean containing true on success or nil on error
++rename = fs.move
++
++--- Get the last modification time of given file path in Unix epoch format.
++-- @param path	String containing the path of the file or directory to read
++-- @return		Number containing the epoch time or nil on error
++-- @return		String containing the error description (if any)
++-- @return		Number containing the os specific errno (if any)
++function mtime(path)
++	return fs.stat(path, "mtime")
++end
++
++--- Set the last modification time  of given file path in Unix epoch format.
++-- @param path	String containing the path of the file or directory to read
++-- @param mtime	Last modification timestamp
++-- @param atime Last accessed timestamp
++-- @return		0 in case of success nil on error
++-- @return		String containing the error description (if any)
++-- @return		Number containing the os specific errno (if any)
++function utime(path, mtime, atime)
++	return fs.utimes(path, atime, mtime)
++end
++
++--- Return the last element - usually the filename - from the given path with
++-- the directory component stripped.
++-- @class		function
++-- @name		basename
++-- @param path	String containing the path to strip
++-- @return		String containing the base name of given path
++-- @see			dirname
++basename = fs.basename
++
++--- Return the directory component of the given path with the last element
++-- stripped of.
++-- @class		function
++-- @name		dirname
++-- @param path	String containing the path to strip
++-- @return		String containing the directory component of given path
++-- @see			basename
++dirname = fs.dirname
++
++--- Return a table containing all entries of the specified directory.
++-- @class		function
++-- @name		dir
++-- @param path	String containing the path of the directory to scan
++-- @return		Table containing file and directory entries or nil on error
++-- @return		String containing the error description on error
++-- @return		Number containing the os specific errno on error
++function dir(...)
++	local iter, code, msg = fs.dir(...)
++	if iter then
++		local t = nutil.consume(iter)
++		t[#t+1] = "."
++		t[#t+1] = ".."
++		return t
++	else
++		return nil, code, msg
++	end
++end
++
++--- Create a new directory, recursively on demand.
++-- @param path		String with the name or path of the directory to create
++-- @param recursive	Create multiple directory levels (optional, default is true)
++-- @return			Number with the return code, 0 on sucess or nil on error
++-- @return			String containing the error description on error
++-- @return			Number containing the os specific errno on error
++function mkdir(path, recursive)
++	return recursive and fs.mkdirr(path) or fs.mkdir(path)
++end
++
++--- Remove the given empty directory.
++-- @class		function
++-- @name		rmdir
++-- @param path	String containing the path of the directory to remove
++-- @return		Number with the return code, 0 on sucess or nil on error
++-- @return		String containing the error description on error
++-- @return		Number containing the os specific errno on error
++rmdir = fs.rmdir
++
++local stat_tr = {
++	reg = "regular",
++	dir = "directory",
++	lnk = "link",
++	chr = "character device",
++	blk = "block device",
++	fifo = "fifo",
++	sock = "socket"
++}
++--- Get information about given file or directory.
++-- @class		function
++-- @name		stat
++-- @param path	String containing the path of the directory to query
++-- @return		Table containing file or directory properties or nil on error
++-- @return		String containing the error description on error
++-- @return		Number containing the os specific errno on error
++function stat(path, key)
++	local data, code, msg = fs.stat(path)
++	if data then
++		data.mode = data.modestr
++		data.type = stat_tr[data.type] or "?"
++	end
++	return key and data and data[key] or data, code, msg
++end
++
++--- Set permissions on given file or directory.
++-- @class		function
++-- @name		chmod
++-- @param path	String containing the path of the directory
++-- @param perm	String containing the permissions to set ([ugoa][+-][rwx])
++-- @return		Number with the return code, 0 on sucess or nil on error
++-- @return		String containing the error description on error
++-- @return		Number containing the os specific errno on error
++chmod = fs.chmod
++
++--- Create a hard- or symlink from given file (or directory) to specified target
++-- file (or directory) path.
++-- @class			function
++-- @name			link
++-- @param path1		String containing the source path to link
++-- @param path2		String containing the destination path for the link
++-- @param symlink	Boolean indicating wheather to create a symlink (optional)
++-- @return			Number with the return code, 0 on sucess or nil on error
++-- @return			String containing the error description on error
++-- @return			Number containing the os specific errno on error
++function link(src, dest, sym)
++	return sym and fs.symlink(src, dest) or fs.link(src, dest)
++end
++
++--- Remove the given file.
++-- @class		function
++-- @name		unlink
++-- @param path	String containing the path of the file to remove
++-- @return		Number with the return code, 0 on sucess or nil on error
++-- @return		String containing the error description on error
++-- @return		Number containing the os specific errno on error
++unlink = fs.unlink
++
++--- Retrieve target of given symlink.
++-- @class		function
++-- @name		readlink
++-- @param path	String containing the path of the symlink to read
++-- @return		String containing the link target or nil on error
++-- @return		String containing the error description on error
++-- @return		Number containing the os specific errno on error
++readlink = fs.readlink
+diff --git a/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js b/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js
+index 461fd8e..4233cf7 100644
+--- a/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js
++++ b/modules/luci-mod-network/htdocs/luci-static/resources/view/network/dhcp.js
+@@ -840,7 +840,7 @@ return view.extend({
+ 			_('Number of cached DNS entries, 10000 is maximum, 0 is no caching.'));
+ 		o.optional = true;
+ 		o.datatype = 'range(0,10000)';
+-		o.placeholder = 1000;
++		o.placeholder = 10000;
+ 
+ 		o = s.taboption('limits', form.Value, 'min_cache_ttl',
+ 			_('Min cache TTL'),
+diff --git a/modules/luci-mod-network/htdocs/luci-static/resources/view/network/diagnostics.js b/modules/luci-mod-network/htdocs/luci-static/resources/view/network/diagnostics.js
+index 1bfa955..9003ac8 100644
+--- a/modules/luci-mod-network/htdocs/luci-static/resources/view/network/diagnostics.js
++++ b/modules/luci-mod-network/htdocs/luci-static/resources/view/network/diagnostics.js
+@@ -70,9 +70,9 @@ return view.extend({
+ 		    has_traceroute6 = res[2].path || res[3].path,
+ 		    has_arpscan = res[4].path,
+ 		    devices = res[5],
+-			dns_host = uci.get('luci', 'diag', 'dns') || 'openwrt.org',
+-			ping_host = uci.get('luci', 'diag', 'ping') || 'openwrt.org',
+-			route_host = uci.get('luci', 'diag', 'route') || 'openwrt.org';
++			dns_host = uci.get('luci', 'diag', 'dns') || 'bing.com',
++			ping_host = uci.get('luci', 'diag', 'ping') || 'bing.com',
++			route_host = uci.get('luci', 'diag', 'route') || 'bing.com';
+ 
+ 		var table = E('table', { 'class': 'table' }, [
+ 				E('tr', { 'class': 'tr' }, [
+diff --git a/modules/luci-mod-system/htdocs/luci-static/resources/view/system/flash.js b/modules/luci-mod-system/htdocs/luci-static/resources/view/system/flash.js
+index a6162d7..49518d0 100644
+--- a/modules/luci-mod-system/htdocs/luci-static/resources/view/system/flash.js
++++ b/modules/luci-mod-system/htdocs/luci-static/resources/view/system/flash.js
+@@ -101,7 +101,7 @@ return view.extend({
+ 		/* Currently the sysupgrade rpc call will not return, hence no promise handling */
+ 		fs.exec('/sbin/firstboot', [ '-r', '-y' ]);
+ 
+-		ui.awaitReconnect('192.168.1.1', 'immortalwrt.lan');
++		ui.awaitReconnect('192.168.10.1', 'immortalwrt.lan');
+ 	},
+ 
+ 	handleRestore: function(ev) {
+@@ -163,7 +163,7 @@ return view.extend({
+ 					E('p', { 'class': 'spinning' }, _('The system is rebooting now. If the restored configuration changed the current LAN IP address, you might need to reconnect manually.'))
+ 				]);
+ 
+-				ui.awaitReconnect(window.location.host, '192.168.1.1', 'immortalwrt.lan');
++				ui.awaitReconnect(window.location.host, '192.168.10.1', 'immortalwrt.lan');
+ 			}, this))
+ 			.catch(function(e) { ui.addNotification(null, E('p', e.message)) })
+ 			.finally(function() { btn.firstChild.data = _('Upload archive...') });
+@@ -337,7 +337,7 @@ return view.extend({
+ 		if (opts['keep'][0].checked)
+ 			ui.awaitReconnect(window.location.host);
+ 		else
+-			ui.awaitReconnect('192.168.1.1', 'immortalwrt.lan');
++			ui.awaitReconnect('192.168.10.1', 'immortalwrt.lan');
+ 	},
+ 
+ 	handleBackupList: function(ev) {
+diff --git a/modules/luci-mod-system/htdocs/luci-static/resources/view/system/system.js b/modules/luci-mod-system/htdocs/luci-static/resources/view/system/system.js
+index 2ed2b1f..67b8b63 100644
+--- a/modules/luci-mod-system/htdocs/luci-static/resources/view/system/system.js
++++ b/modules/luci-mod-system/htdocs/luci-static/resources/view/system/system.js
+@@ -143,7 +143,7 @@ return view.extend({
+ 		o.optional = true;
+ 
+ 		o = s.taboption('general', form.ListValue, 'zonename', _('Timezone'));
+-		o.value('UTC');
++		o.value('CST-8');
+ 
+ 		var zones = Object.keys(timezones || {}).sort();
+ 		for (var i = 0; i < zones.length; i++)
+@@ -161,7 +161,7 @@ return view.extend({
+ 
+ 		o = s.taboption('logging', form.Value, 'log_size', _('System log buffer size'), "kiB");
+ 		o.optional    = true;
+-		o.placeholder = 128;
++		o.placeholder = 64;
+ 		o.datatype    = 'uinteger';
+ 
+ 		o = s.taboption('logging', form.Value, 'log_ip', _('External system log server'));
+@@ -193,7 +193,7 @@ return view.extend({
+ 		o.value(1, _('Emergency'));
+ 
+ 		o = s.taboption('logging', form.ListValue, 'cronloglevel', _('Cron Log Level'));
+-		o.default = 7;
++		o.default = 9;
+ 		o.value(7, _('Normal'));
+ 		o.value(9, _('Disabled'));
+ 		o.value(5, _('Debug'));
+@@ -207,12 +207,12 @@ return view.extend({
+ 
+ 			o = s.taboption('zram', form.Value, 'zram_size_mb', _('ZRam Size'), _('Size of the ZRam device in megabytes'));
+ 			o.optional    = true;
+-			o.placeholder = 16;
++			o.placeholder = 512;
+ 			o.datatype    = 'uinteger';
+ 
+ 			o = s.taboption('zram', form.ListValue, 'zram_comp_algo', _('ZRam Compression Algorithm'));
+ 			o.optional    = true;
+-			o.default     = 'lzo';
++			o.default     = 'zstd';
+ 			o.value('lzo', 'lzo');
+ 			o.value('lz4', 'lz4');
+ 			o.value('zstd', 'zstd');
+@@ -250,8 +250,8 @@ return view.extend({
+ 
+ 		if (L.hasSystemFeature('sysntpd')) {
+ 			var default_servers = [
+-				'0.openwrt.pool.ntp.org', '1.openwrt.pool.ntp.org',
+-				'2.openwrt.pool.ntp.org', '3.openwrt.pool.ntp.org'
++				'0.ntp.ntsc.ac.cn', '1.cn.ntp.org.cn',
++				'2.ntp.bupt.edu.cn', '3.cn.pool.ntp.org'
+ 			];
+ 
+ 			o = s.taboption('timesync', form.Flag, 'enabled', _('Enable NTP client'));
+diff --git a/themes/luci-theme-argon/htdocs/luci-static/argon/background/README.md b/themes/luci-theme-argon/htdocs/luci-static/argon/background/README.md
+deleted file mode 100644
+index a86f27b..0000000
+--- a/themes/luci-theme-argon/htdocs/luci-static/argon/background/README.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-Drop background here!
+-accept jpg png gif mp4 webm
+diff --git a/themes/luci-theme-argon/luasrc/view/themes/argon/footer.htm b/themes/luci-theme-argon/luasrc/view/themes/argon/footer.htm
+index a184ff1..209d0c5 100644
+--- a/themes/luci-theme-argon/luasrc/view/themes/argon/footer.htm
++++ b/themes/luci-theme-argon/luasrc/view/themes/argon/footer.htm
+@@ -15,14 +15,10 @@
+ 
+ 	Licensed to the public under the Apache License 2.0 
+ -%>
+-
+-<% local ver = require "luci.version" %>
+ </div>
+ <footer class="mobile-hide">
+ 	<div>
+-		<a class="luci-link" href="https://github.com/openwrt/luci" target="_blank">Powered by <%= ver.luciname %> (<%= ver.luciversion %>)</a> /
+-						<a href="https://github.com/jerrykuku/luci-theme-argon" target="_blank">ArgonTheme <%# vPKG_VERSION %></a> /
+-						<%= ver.distversion %>
++		<a href="http://192.168.10.1/cgi-bin/luci/">ArgonTheme</a>
+ 		<ul class="breadcrumb pull-right" id="modemenu" style="display:none"></ul>
+ 	</div>
+ </footer>
+diff --git a/themes/luci-theme-argon/luasrc/view/themes/argon/footer_login.htm b/themes/luci-theme-argon/luasrc/view/themes/argon/footer_login.htm
+index 366e2db..364b905 100644
+--- a/themes/luci-theme-argon/luasrc/view/themes/argon/footer_login.htm
++++ b/themes/luci-theme-argon/luasrc/view/themes/argon/footer_login.htm
+@@ -15,14 +15,10 @@
+ 
+ 	Licensed to the public under the Apache License 2.0
+ -%>
+-
+-<% local ver = require "luci.version" %>
+ </div>
+ <footer>
+ 	<div>
+-		<a class="luci-link" href="https://github.com/openwrt/luci" target="_blank">Powered by <%= ver.luciname %> (<%= ver.luciversion %>)</a> /
+-						<a href="https://github.com/jerrykuku/luci-theme-argon" target="_blank">ArgonTheme <%# vPKG_VERSION %></a> /
+-						<%= ver.distversion %>
++		<a href="http://192.168.10.1/cgi-bin/luci/">ArgonTheme</a>
+ 	</div>
+ </footer>
+ </div>
