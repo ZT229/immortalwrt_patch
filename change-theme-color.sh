@@ -4,7 +4,7 @@
 THEME_DIR="themes/luci-theme-argon"
 
 # 检测是否在 luci 根目录（即脚本和 themes/ 应该同级）
-if [ ! -d "./themes" ] || [ ! -f "./feeds.conf.default" ]; then
+if [ ! -d "./themes" ] || [ ! -f "./luci.patch" ]; then
   echo "❌ 错误：请在 luci 源码根目录下运行此脚本！"
   exit 1
 fi
