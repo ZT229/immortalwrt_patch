@@ -63,7 +63,14 @@ jobs:
           tar -zxf meta.tar.gz
           mv -f clash clash_meta
           chmod +x clash_meta
-          rm -f *.tar.gz  
+          rm -f *.tar.gz
+
+      - name: 替换背景图片 bg1.jpg
+        working-directory: luci_repo/themes/luci-theme-argon/htdocs/luci-static/argon/img
+        run: |
+          rm -f bg1.jpg
+          cp $GITHUB_WORKSPACE/bg1.jpg .
+
       - name: 推送
         run: |
           git add .
