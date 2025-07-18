@@ -15,7 +15,7 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: 安装git并配置 Git 用户信息
+      - name: 配置 Git 用户信息
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
